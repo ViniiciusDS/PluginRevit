@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+
+# Revit / pyRevit
+*.log
+*.journal
+
+# Windows
+Thumbs.db
+Desktop.ini
+
+# Local test/model files
+test_models/
+*.rvt
+*.rfa
+*.rte
