@@ -25,9 +25,9 @@ if str(LIB_PATH) not in sys.path:
 
 from pluginrevit.reporting import (
     build_element_info_rows,
+    build_parameter_identity_rows,
     build_parameter_rows,
 )
-
 
 class TestElementInfoReporting(unittest.TestCase):
     """Testes da preparação de informações de elementos para relatório."""
@@ -193,6 +193,219 @@ class TestParameterReporting(unittest.TestCase):
 
         with self.assertRaises(TypeError):
             build_parameter_rows(
+                parameter_infos
+            )
+
+class TestParameterIdentityReporting(unittest.TestCase):
+    """
+    Testes da preparação dos metadados de identidade dos parâmetros.
+    """
+
+    def test_builtin_parameter_identity_row(self):
+        """
+        Deve preparar corretamente a linha de um parâmetro built-in.
+        """
+
+        parameter_infos = [
+            {
+                "name": "Painel",
+                "parameter_id": -1140123,
+                "identity_kind": "BuiltIn",
+                "built_in_parameter": "RBS_ELEC_PANEL_NAME",
+                "is_shared": False,
+                "guid": None,
+                "data_type_id": "autodesk.spec:string",
+            }
+        ]
+
+        rows = build_parameter_identity_rows(
+            parameter_infos
+        )
+
+        self.assertEqual(
+            rows[0],
+            [
+                "Painel",
+                "-1140123",
+                "BuiltIn",
+                "RBS_ELEC_PANEL_NAME",
+                "Não",
+                "N/D",
+                "autodesk.spec:string",
+            ],
+        )
+
+    def test_shared_parameter_identity_row(self):
+        """
+        Shared Parameter deve apresentar GUID e origem Shared.
+        """
+
+        guid = (
+            "12345678-1234-1234-1234-123456789abc"
+        )
+
+        parameter_infos = [
+            {
+                "name": "ID do comando",
+                "parameter_id": 250001,
+                "identity_kind": "Shared",
+                "built_in_parameter": None,
+                "is_shared": True,
+                "guid": guid,
+                "data_type_id": "autodesk.spec:string",
+            }
+        ]
+
+        rows = build_parameter_identity_rows(
+            parameter_infos
+        )
+
+        self.assertEqual(
+            rows[0],
+            [
+                "ID do comando",
+                "250001",
+                "Shared",
+                "N/D",
+                "Sim",
+                guid,
+                "autodesk.spec:string",
+            ],
+        )
+
+    def test_custom_parameter_identity_row(self):
+        """
+        Parâmetro customizado deve manter sua classificação
+        Custom/Other.
+        """
+
+        parameter_infos = [
+            {
+                "name": "RN1",
+                "parameter_id": 250100,
+                "identity_kind": "Custom/Other",
+                "built_in_parameter": None,
+                "is_shared": False,
+                "guid": None,
+                "data_type_id": "autodesk.spec:number",
+            }
+        ]
+
+        rows = build_parameter_identity_rows(
+            parameter_infos
+        )
+
+        self.assertEqual(
+            rows[0],
+            [
+                "RN1",
+                "250100",
+                "Custom/Other",
+                "N/D",
+                "Não",
+                "N/D",
+                "autodesk.spec:number",
+            ],
+        )
+
+    def test_missing_identity_information_becomes_nd(self):
+        """
+        Metadados ausentes devem ser apresentados como N/D.
+        """
+
+        parameter_infos = [
+            {
+                "name": "Parâmetro Teste",
+            }
+        ]
+
+        rows = build_parameter_identity_rows(
+            parameter_infos
+        )
+
+        self.assertEqual(
+            rows[0],
+            [
+                "Parâmetro Teste",
+                "N/D",
+                "N/D",
+                "N/D",
+                "N/D",
+                "N/D",
+                "N/D",
+            ],
+        )
+
+    def test_same_name_parameters_preserve_distinct_ids(self):
+        """
+        Dois parâmetros com o mesmo nome devem permanecer distinguíveis
+        no relatório através de seus ParameterIds.
+
+        Esse teste representa o cenário encontrado anteriormente com
+        parâmetros como "Nível" e "Categoria".
+        """
+
+        parameter_infos = [
+            {
+                "name": "Nível",
+                "parameter_id": -100001,
+                "identity_kind": "BuiltIn",
+                "built_in_parameter": "LEVEL_PARAM_A",
+                "is_shared": False,
+                "guid": None,
+                "data_type_id": "autodesk.spec:reference",
+            },
+            {
+                "name": "Nível",
+                "parameter_id": -100002,
+                "identity_kind": "BuiltIn",
+                "built_in_parameter": "LEVEL_PARAM_B",
+                "is_shared": False,
+                "guid": None,
+                "data_type_id": "autodesk.spec:reference",
+            },
+        ]
+
+        rows = build_parameter_identity_rows(
+            parameter_infos
+        )
+
+        self.assertEqual(
+            rows[0][0],
+            "Nível",
+        )
+
+        self.assertEqual(
+            rows[1][0],
+            "Nível",
+        )
+
+        self.assertEqual(
+            rows[0][1],
+            "-100001",
+        )
+
+        self.assertEqual(
+            rows[1][1],
+            "-100002",
+        )
+
+    def test_invalid_identity_item_raises_type_error(self):
+        """
+        Um item inválido deve gerar erro explícito em vez de produzir
+        uma tabela parcialmente incorreta.
+        """
+
+        parameter_infos = [
+            {
+                "name": "Painel",
+                "parameter_id": 123,
+            },
+            "item inválido",
+        ]
+
+        with self.assertRaises(TypeError):
+            build_parameter_identity_rows(
                 parameter_infos
             )
 

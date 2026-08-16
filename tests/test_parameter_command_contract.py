@@ -127,6 +127,7 @@ class TestParameterCommandContract(unittest.TestCase):
             "read_element_parameters",
             "build_element_info_rows",
             "build_parameter_rows",
+            "build_parameter_identity_rows",
         }
 
         missing_names = (
@@ -141,6 +142,50 @@ class TestParameterCommandContract(unittest.TestCase):
             ),
         )
 
+    def test_parameter_command_calls_identity_reporting(self):
+        """
+        O comando deve realmente utilizar build_parameter_identity_rows().
+
+        Não basta importar a função: a integração da Etapa 1C exige que
+        os metadados de identidade sejam processados antes da apresentação.
+
+        Este teste ajuda a detectar regressões em que o import permanece
+        no script, mas a chamada é removida acidentalmente.
+        """
+
+        syntax_tree = self._parse_source_code()
+
+        called_functions = set()
+
+        # --------------------------------------------------------------
+        # Percorre todas as chamadas existentes no script.
+        # --------------------------------------------------------------
+
+        for node in ast.walk(syntax_tree):
+
+            if isinstance(node, ast.Call):
+
+                # ------------------------------------------------------
+                # Estamos interessados em chamadas diretas como:
+                #
+                #     build_parameter_identity_rows(...)
+                #
+                # ------------------------------------------------------
+
+                if isinstance(node.func, ast.Name):
+
+                    called_functions.add(
+                        node.func.id
+                    )
+
+        self.assertIn(
+            "build_parameter_identity_rows",
+            called_functions,
+            (
+                "O comando importa a infraestrutura de identidade, "
+                "mas não chama build_parameter_identity_rows()."
+            ),
+        )
 
 if __name__ == "__main__":
     unittest.main()

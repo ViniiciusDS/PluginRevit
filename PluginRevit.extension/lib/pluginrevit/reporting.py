@@ -113,7 +113,6 @@ def build_element_info_rows(element_info):
 
     return rows
 
-
 # ======================================================================
 # Relatórios de parâmetros
 # ======================================================================
@@ -298,6 +297,177 @@ def build_parameter_rows(parameter_infos):
             storage_type,
             has_value,
             is_read_only,
+        ])
+
+    return rows
+
+# ======================================================================
+# Relatórios de identidade de parâmetros
+# ======================================================================
+
+
+def build_parameter_identity_rows(parameter_infos):
+    """
+    Converte metadados de identidade dos parâmetros em linhas de tabela.
+
+    Args:
+        parameter_infos (list ou tuple):
+            Lista de dicionários produzidos por
+            parameter_reader.read_element_parameters().
+
+            Cada item pode conter:
+
+                {
+                    "name": ...,
+                    "parameter_id": ...,
+                    "identity_kind": ...,
+                    "built_in_parameter": ...,
+                    "is_shared": ...,
+                    "guid": ...,
+                    "data_type_id": ...
+                }
+
+    Returns:
+        list:
+            Lista bidimensional pronta para apresentação.
+
+            Estrutura de cada linha:
+
+                [
+                    nome,
+                    parameter_id,
+                    origem,
+                    built_in_parameter,
+                    shared,
+                    guid,
+                    data_type_id
+                ]
+
+    Raises:
+        TypeError:
+            Caso parameter_infos não seja uma lista/tupla.
+
+            Também gera erro caso algum item da coleção não seja
+            um dicionário.
+
+    Notes:
+        Esta função não altera nem reordena os parâmetros.
+
+        A ordem continua sendo responsabilidade de parameter_reader.py.
+
+        Valores ausentes são apresentados como "N/D" para manter
+        consistência com os demais relatórios do PluginRevit.
+    """
+
+    # ------------------------------------------------------------------
+    # Validar coleção recebida.
+    # ------------------------------------------------------------------
+
+    if not isinstance(parameter_infos, (list, tuple)):
+        raise TypeError(
+            "parameter_infos deve ser uma lista ou tupla."
+        )
+
+    rows = []
+
+    # ------------------------------------------------------------------
+    # Cada item representa um Parameter já normalizado pelo
+    # parameter_reader.py.
+    # ------------------------------------------------------------------
+
+    for index, parameter_info in enumerate(parameter_infos):
+
+        if not isinstance(parameter_info, dict):
+            raise TypeError(
+                "O parâmetro na posição {0} deve ser um dicionário.".format(
+                    index
+                )
+            )
+
+        # --------------------------------------------------------------
+        # Nome apresentado.
+        #
+        # Esse valor é útil para leitura humana, mas sabemos desde a
+        # Etapa 1C que ele sozinho não representa uma identidade segura.
+        # --------------------------------------------------------------
+
+        name = _normalize_display_value(
+            parameter_info.get("name")
+        )
+
+        # --------------------------------------------------------------
+        # Identificador do parâmetro.
+        #
+        # Esse campo será particularmente importante para diferenciar
+        # parâmetros que possuem exatamente o mesmo nome.
+        # --------------------------------------------------------------
+
+        parameter_id = _normalize_display_value(
+            parameter_info.get("parameter_id")
+        )
+
+        # --------------------------------------------------------------
+        # Classificação que definimos no parameter_reader:
+        #
+        #     BuiltIn
+        #     Shared
+        #     Custom/Other
+        # --------------------------------------------------------------
+
+        identity_kind = _normalize_display_value(
+            parameter_info.get("identity_kind")
+        )
+
+        # --------------------------------------------------------------
+        # Nome do enum BuiltInParameter.
+        #
+        # Para parâmetros que não são built-in, será exibido N/D.
+        # --------------------------------------------------------------
+
+        built_in_parameter = _normalize_display_value(
+            parameter_info.get("built_in_parameter")
+        )
+
+        # --------------------------------------------------------------
+        # Shared Parameter.
+        #
+        # Utilizamos o mesmo padrão "Sim / Não / N/D" dos relatórios
+        # anteriores.
+        # --------------------------------------------------------------
+
+        is_shared = _format_boolean(
+            parameter_info.get("is_shared")
+        )
+
+        # --------------------------------------------------------------
+        # GUID.
+        #
+        # Só deve possuir valor quando o parâmetro for compartilhado.
+        # --------------------------------------------------------------
+
+        guid = _normalize_display_value(
+            parameter_info.get("guid")
+        )
+
+        # --------------------------------------------------------------
+        # Tipo de dado informado pela Definition.
+        #
+        # Esse campo descreve melhor o significado do parâmetro do que
+        # apenas seu StorageType.
+        # --------------------------------------------------------------
+
+        data_type_id = _normalize_display_value(
+            parameter_info.get("data_type_id")
+        )
+
+        rows.append([
+            name,
+            parameter_id,
+            identity_kind,
+            built_in_parameter,
+            is_shared,
+            guid,
+            data_type_id,
         ])
 
     return rows

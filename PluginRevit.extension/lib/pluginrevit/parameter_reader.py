@@ -258,6 +258,317 @@ def _read_display_parameter_value(
 
     return str(raw_value)
 
+def _get_parameter_id_value(parameter):
+    """
+    Obtém o identificador associado a um parâmetro.
+
+    Args:
+        parameter:
+            Objeto compatível com Autodesk.Revit.DB.Parameter.
+
+    Returns:
+        int ou None:
+            ID numérico associado ao parâmetro.
+
+            Para parâmetros built-in, normalmente será um valor negativo.
+            Para parâmetros personalizados, normalmente será um ID associado
+            ao documento atual.
+
+            Retorna None caso não seja possível determinar o ID.
+
+    Notes:
+        Utilizamos múltiplas estratégias para reduzir dependência de uma
+        única representação da Revit API.
+    """
+
+    if parameter is None:
+        return None
+
+    # --------------------------------------------------------------
+    # Tentativa principal:
+    # Parameter.Id representa diretamente a identidade do parâmetro.
+    # --------------------------------------------------------------
+
+    try:
+        parameter_id = parameter.Id
+
+        value = _get_element_id_value(
+            parameter_id
+        )
+
+        if value is not None:
+            return value
+
+    except Exception:
+        pass
+
+    # --------------------------------------------------------------
+    # Fallback para parâmetros built-in.
+    #
+    # O enum BuiltInParameter também possui um valor numérico que pode
+    # representar a identidade do parâmetro.
+    # --------------------------------------------------------------
+
+    try:
+        definition = parameter.Definition
+        built_in_parameter = definition.BuiltInParameter
+
+        return int(built_in_parameter)
+
+    except Exception:
+        pass
+
+    # --------------------------------------------------------------
+    # Último fallback:
+    # parâmetros personalizados podem possuir um ParameterElement
+    # associado à InternalDefinition.
+    # --------------------------------------------------------------
+
+    try:
+        definition_id = parameter.Definition.Id
+
+        return _get_element_id_value(
+            definition_id
+        )
+
+    except Exception:
+        return None
+
+
+def _get_builtin_parameter_name(parameter):
+    """
+    Identifica se o parâmetro corresponde a um BuiltInParameter.
+
+    Args:
+        parameter:
+            Objeto compatível com Autodesk.Revit.DB.Parameter.
+
+    Returns:
+        str ou None:
+            Nome do BuiltInParameter.
+
+            Exemplo:
+                "RBS_ELEC_PANEL_NAME"
+
+            Retorna None quando o parâmetro não é built-in.
+
+    Notes:
+        Para parâmetros personalizados, a Revit API utiliza o valor
+        BuiltInParameter.INVALID.
+    """
+
+    try:
+        built_in_parameter = (
+            parameter.Definition.BuiltInParameter
+        )
+
+    except Exception:
+        return None
+
+    # --------------------------------------------------------------
+    # Primeiro tentamos utilizar ToString(), pois estamos trabalhando
+    # com um enum .NET.
+    # --------------------------------------------------------------
+
+    try:
+        name = str(
+            built_in_parameter.ToString()
+        )
+
+    except Exception:
+
+        try:
+            name = str(
+                built_in_parameter
+            ).split(".")[-1]
+
+        except Exception:
+            return None
+
+    # --------------------------------------------------------------
+    # INVALID significa que a definição não representa um parâmetro
+    # built-in.
+    # --------------------------------------------------------------
+
+    normalized_name = name.upper()
+
+    if (
+        normalized_name == "INVALID"
+        or normalized_name.endswith(".INVALID")
+    ):
+        return None
+
+    return name
+
+
+def _is_shared_parameter(parameter):
+    """
+    Verifica se o parâmetro é um Shared Parameter.
+
+    Args:
+        parameter:
+            Objeto compatível com Autodesk.Revit.DB.Parameter.
+
+    Returns:
+        bool:
+            True quando o parâmetro é compartilhado.
+            False nos demais casos.
+    """
+
+    try:
+        return bool(
+            parameter.IsShared
+        )
+
+    except Exception:
+        return False
+
+
+def _get_shared_parameter_guid(
+    parameter,
+    is_shared,
+):
+    """
+    Obtém o GUID de um Shared Parameter.
+
+    Args:
+        parameter:
+            Objeto compatível com Autodesk.Revit.DB.Parameter.
+
+        is_shared (bool):
+            Resultado previamente obtido por _is_shared_parameter().
+
+    Returns:
+        str ou None:
+            GUID do parâmetro compartilhado.
+
+            Retorna None para parâmetros que não são Shared Parameters.
+
+    Notes:
+        Evitamos acessar Parameter.GUID quando o parâmetro não é
+        compartilhado, pois essa informação não é aplicável nesse caso.
+    """
+
+    if not is_shared:
+        return None
+
+    try:
+        guid = parameter.GUID
+
+        if guid is None:
+            return None
+
+        guid_text = str(guid)
+
+        if not guid_text:
+            return None
+
+        return guid_text
+
+    except Exception:
+        return None
+
+
+def _get_data_type_id(parameter):
+    """
+    Obtém o identificador do tipo de dado da Definition.
+
+    Args:
+        parameter:
+            Objeto compatível com Autodesk.Revit.DB.Parameter.
+
+    Returns:
+        str ou None:
+            TypeId retornado pelo ForgeTypeId associado ao parâmetro.
+
+            Retorna None quando a informação não estiver disponível.
+
+    Notes:
+        O data_type_id descreve o significado do dado e não deve ser
+        confundido com StorageType.
+
+        StorageType responde COMO o valor é armazenado.
+
+        GetDataType() ajuda a responder O QUE o valor representa.
+    """
+
+    try:
+        definition = parameter.Definition
+
+        data_type = definition.GetDataType()
+
+        if data_type is None:
+            return None
+
+    except Exception:
+        return None
+
+    # --------------------------------------------------------------
+    # ForgeTypeId normalmente possui a propriedade TypeId.
+    # --------------------------------------------------------------
+
+    try:
+        type_id = data_type.TypeId
+
+        if type_id:
+            return str(type_id)
+
+    except Exception:
+        pass
+
+    # --------------------------------------------------------------
+    # Fallback defensivo.
+    # --------------------------------------------------------------
+
+    try:
+        data_type_text = str(data_type)
+
+        if data_type_text:
+            return data_type_text
+
+    except Exception:
+        pass
+
+    return None
+
+
+def _classify_parameter_identity(
+    built_in_parameter,
+    is_shared,
+):
+    """
+    Classifica a origem identificável do parâmetro.
+
+    Args:
+        built_in_parameter (str ou None):
+            Nome do BuiltInParameter, quando aplicável.
+
+        is_shared (bool):
+            Indica se o parâmetro é compartilhado.
+
+    Returns:
+        str:
+            Uma das classificações:
+
+                "BuiltIn"
+                "Shared"
+                "Custom/Other"
+
+    Notes:
+        Nesta etapa não tentamos distinguir automaticamente parâmetros
+        de projeto de parâmetros de família.
+
+        Essa classificação exigiria contexto adicional e será tratada
+        somente caso seja necessária para as futuras regras do plugin.
+    """
+
+    if built_in_parameter is not None:
+        return "BuiltIn"
+
+    if is_shared:
+        return "Shared"
+
+    return "Custom/Other"
 
 def read_parameter_info(parameter):
     """
@@ -269,62 +580,130 @@ def read_parameter_info(parameter):
 
     Returns:
         dict:
-            Estrutura contendo:
+            Dicionário contendo informações de identidade, valor
+            e estado do parâmetro.
 
-            {
-                "name": ...,
-                "storage_type": ...,
-                "raw_value": ...,
-                "display_value": ...,
-                "has_value": ...,
-                "is_read_only": ...
-            }
+            Estrutura retornada:
+
+                {
+                    "name": ...,
+                    "parameter_id": ...,
+                    "identity_kind": ...,
+                    "built_in_parameter": ...,
+                    "is_shared": ...,
+                    "guid": ...,
+                    "data_type_id": ...,
+
+                    "storage_type": ...,
+                    "raw_value": ...,
+                    "display_value": ...,
+                    "has_value": ...,
+                    "is_read_only": ...
+                }
+
+    Raises:
+        ValueError:
+            Caso nenhum parâmetro seja fornecido.
 
     Notes:
-        Esta função não altera o parâmetro.
-        Nenhuma operação Set() é realizada.
+        Esta função é SOMENTE LEITURA.
+
+        Nenhuma chamada Parameter.Set() é realizada e nenhum dado
+        do modelo Revit é alterado.
     """
+
+    # ==============================================================
+    # 1. Validar entrada
+    # ==============================================================
 
     if parameter is None:
         raise ValueError(
             "Nenhum parâmetro foi fornecido para leitura."
         )
 
-    # --------------------------------------------------------------
-    # Nome do parâmetro
-    # --------------------------------------------------------------
+    # ==============================================================
+    # 2. Nome apresentado do parâmetro
+    # ==============================================================
+    #
+    # O nome é útil para interface e diagnóstico, mas não será usado
+    # sozinho como identidade definitiva do parâmetro.
+    # ==============================================================
 
     try:
         definition = parameter.Definition
-        parameter_name = str(definition.Name)
+        parameter_name = str(
+            definition.Name
+        )
 
     except Exception:
         parameter_name = "N/D"
 
-    # --------------------------------------------------------------
-    # Tipo de armazenamento
-    # --------------------------------------------------------------
+    # ==============================================================
+    # 3. Identidade do parâmetro
+    # ==============================================================
+    #
+    # A Etapa 1C adiciona informações que permitem distinguir
+    # parâmetros mesmo quando possuem o mesmo nome.
+    # ==============================================================
 
-    storage_type = _get_storage_type_name(parameter)
+    parameter_id = _get_parameter_id_value(
+        parameter
+    )
 
-    # --------------------------------------------------------------
-    # Presença de valor
-    # --------------------------------------------------------------
+    built_in_parameter = _get_builtin_parameter_name(
+        parameter
+    )
 
-    has_value = _parameter_has_value(parameter)
+    is_shared = _is_shared_parameter(
+        parameter
+    )
 
-    # --------------------------------------------------------------
-    # Valor bruto
-    # --------------------------------------------------------------
+    guid = _get_shared_parameter_guid(
+        parameter,
+        is_shared,
+    )
+
+    data_type_id = _get_data_type_id(
+        parameter
+    )
+
+    identity_kind = _classify_parameter_identity(
+        built_in_parameter,
+        is_shared,
+    )
+
+    # ==============================================================
+    # 4. StorageType
+    # ==============================================================
+
+    storage_type = _get_storage_type_name(
+        parameter
+    )
+
+    # ==============================================================
+    # 5. Presença de valor
+    # ==============================================================
+
+    has_value = _parameter_has_value(
+        parameter
+    )
+
+    # ==============================================================
+    # 6. Valor bruto
+    # ==============================================================
 
     raw_value = _read_raw_parameter_value(
         parameter,
         storage_type,
     )
 
-    # --------------------------------------------------------------
-    # Valor para apresentação
-    # --------------------------------------------------------------
+    # ==============================================================
+    # 7. Valor apresentado
+    # ==============================================================
+    #
+    # Para grandezas numéricas, este valor pode estar formatado
+    # conforme as unidades e configurações do projeto Revit.
+    # ==============================================================
 
     display_value = _read_display_parameter_value(
         parameter,
@@ -332,20 +711,46 @@ def read_parameter_info(parameter):
         raw_value,
     )
 
-    # --------------------------------------------------------------
-    # Estado de edição
-    #
-    # Isso será importante futuramente quando o plugin começar a
-    # modificar parâmetros.
-    # --------------------------------------------------------------
+    # ==============================================================
+    # 8. Estado de edição
+    # ==============================================================
 
     try:
-        is_read_only = bool(parameter.IsReadOnly)
+        is_read_only = bool(
+            parameter.IsReadOnly
+        )
+
     except Exception:
+
+        # Caso não seja possível determinar, adotamos a opção mais
+        # conservadora e consideramos o parâmetro somente leitura.
         is_read_only = True
 
+    # ==============================================================
+    # 9. Resultado normalizado
+    # ==============================================================
+    #
+    # O restante do PluginRevit recebe apenas uma estrutura Python
+    # simples, sem precisar conhecer os detalhes internos da API.
+    # ==============================================================
+
     return {
+        # ----------------------------------------------------------
+        # Identificação
+        # ----------------------------------------------------------
+
         "name": parameter_name,
+        "parameter_id": parameter_id,
+        "identity_kind": identity_kind,
+        "built_in_parameter": built_in_parameter,
+        "is_shared": is_shared,
+        "guid": guid,
+        "data_type_id": data_type_id,
+
+        # ----------------------------------------------------------
+        # Valor e estado
+        # ----------------------------------------------------------
+
         "storage_type": storage_type,
         "raw_value": raw_value,
         "display_value": display_value,

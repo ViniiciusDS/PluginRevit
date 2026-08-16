@@ -102,6 +102,7 @@ def main():
 
         from pluginrevit.reporting import (
             build_element_info_rows,
+            build_parameter_identity_rows,
             build_parameter_rows,
         )
 
@@ -147,9 +148,31 @@ def main():
         parameter_rows = build_parameter_rows(
             parameter_infos
         )
-
         # ==============================================================
-        # 8. Configurar janela de saída
+        # 8. Preparar identidade dos parâmetros para apresentação
+        # ==============================================================
+        #
+        # A tabela original continua responsável pelos valores.
+        #
+        # Esta segunda estrutura apresenta os metadados coletados na
+        # Etapa 1C:
+        #
+        #     ParameterId
+        #     origem
+        #     BuiltInParameter
+        #     Shared Parameter
+        #     GUID
+        #     DataType
+        #
+        # Mantemos as duas tabelas separadas para não misturar informações
+        # de uso do parâmetro com informações de identidade.
+        # ==============================================================
+
+        parameter_identity_rows = build_parameter_identity_rows(
+            parameter_infos
+        )
+        # ==============================================================
+        # 9. Configurar janela de saída
         # ==============================================================
 
         output.set_title(
@@ -157,7 +180,7 @@ def main():
         )
 
         # ==============================================================
-        # 9. Informações básicas
+        # 10. Informações básicas
         # ==============================================================
 
         output.print_md(
@@ -177,7 +200,7 @@ def main():
         )
 
         # ==============================================================
-        # 10. Parâmetros encontrados
+        # 11. Parâmetros encontrados
         # ==============================================================
 
         output.print_md(
@@ -191,7 +214,7 @@ def main():
         )
 
         # ==============================================================
-        # 11. Exibir tabela
+        # 12. Exibir tabela
         # ==============================================================
 
         if parameter_rows:
@@ -220,6 +243,55 @@ def main():
             output.print_md(
                 "*Nenhum parâmetro de instância foi encontrado "
                 "para este elemento.*"
+            )
+
+        # ==============================================================
+        # Identidade dos parâmetros
+        # ==============================================================
+        #
+        # Esta seção existe principalmente para diagnóstico e desenvolvimento.
+        #
+        # Ela permite verificar se dois parâmetros visualmente iguais são
+        # realmente o mesmo parâmetro e identificar quais metadados podem ser
+        # utilizados futuramente pelas regras de automação do PluginRevit.
+        # ==============================================================
+
+        output.insert_divider()
+
+        output.print_md(
+            "## Identidade dos parâmetros"
+        )
+
+        output.print_md(
+            "Metadados utilizados para identificar cada parâmetro "
+            "independentemente do nome apresentado no Revit."
+        )
+
+        if parameter_identity_rows:
+
+            output.print_table(
+                table_data=parameter_identity_rows,
+                columns=[
+                    "Parâmetro",
+                    "Parameter ID",
+                    "Origem",
+                    "BuiltInParameter",
+                    "Shared?",
+                    "GUID",
+                    "Data Type",
+                ],
+            )
+
+        else:
+
+            # ----------------------------------------------------------
+            # Este cenário normalmente acompanha a ausência de parâmetros
+            # já tratada na tabela anterior, mas mantemos o tratamento
+            # defensivo também nesta seção.
+            # ----------------------------------------------------------
+
+            output.print_md(
+                "*Nenhuma informação de identidade foi encontrada.*"
             )
 
     except Exception:
