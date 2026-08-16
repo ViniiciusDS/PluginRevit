@@ -23,7 +23,10 @@ if str(LIB_PATH) not in sys.path:
     sys.path.insert(0, str(LIB_PATH))
 
 
-from pluginrevit.reporting import build_element_info_rows
+from pluginrevit.reporting import (
+    build_element_info_rows,
+    build_parameter_rows,
+)
 
 
 class TestElementInfoReporting(unittest.TestCase):
@@ -74,6 +77,124 @@ class TestElementInfoReporting(unittest.TestCase):
 
         self.assertEqual(rows[0], ["ID", "0"])
 
+class TestParameterReporting(unittest.TestCase):
+    """
+    Testes da preparação dos parâmetros para apresentação em tabela.
+    """
+
+    def test_build_parameter_rows_with_complete_information(self):
+        """
+        Deve converter corretamente informações completas de parâmetros
+        em linhas de tabela.
+        """
+
+        parameter_infos = [
+            {
+                "name": "Painel",
+                "storage_type": "String",
+                "raw_value": "QD-01",
+                "display_value": "QD-01",
+                "has_value": True,
+                "is_read_only": True,
+            },
+            {
+                "name": "Elevação",
+                "storage_type": "Double",
+                "raw_value": 0.9842519685,
+                "display_value": "300 mm",
+                "has_value": True,
+                "is_read_only": False,
+            },
+        ]
+
+        rows = build_parameter_rows(
+            parameter_infos
+        )
+
+        self.assertEqual(
+            rows[0],
+            [
+                "Painel",
+                "QD-01",
+                "QD-01",
+                "String",
+                "Sim",
+                "Sim",
+            ],
+        )
+
+        self.assertEqual(
+            rows[1],
+            [
+                "Elevação",
+                "300 mm",
+                "0.9842519685",
+                "Double",
+                "Sim",
+                "Não",
+            ],
+        )
+
+    def test_missing_parameter_information_becomes_nd(self):
+        """
+        Informações ausentes devem ser exibidas como N/D.
+        """
+
+        parameter_infos = [
+            {
+                "name": "Comentários",
+            }
+        ]
+
+        rows = build_parameter_rows(
+            parameter_infos
+        )
+
+        self.assertEqual(
+            rows[0],
+            [
+                "Comentários",
+                "N/D",
+                "N/D",
+                "N/D",
+                "N/D",
+                "N/D",
+            ],
+        )
+
+    def test_empty_parameter_list_returns_empty_rows(self):
+        """
+        Uma lista vazia de parâmetros deve gerar uma lista vazia
+        de linhas sem provocar erro.
+        """
+
+        rows = build_parameter_rows([])
+
+        self.assertEqual(
+            rows,
+            [],
+        )
+
+    def test_invalid_parameter_item_raises_type_error(self):
+        """
+        Um item que não seja dicionário deve gerar erro explícito.
+
+        Isso ajuda a detectar problemas de contrato entre
+        parameter_reader.py e reporting.py.
+        """
+
+        parameter_infos = [
+            {
+                "name": "Circuito",
+                "display_value": "C1",
+            },
+            "isto não é um dicionário",
+        ]
+
+        with self.assertRaises(TypeError):
+            build_parameter_rows(
+                parameter_infos
+            )
 
 if __name__ == "__main__":
     unittest.main()

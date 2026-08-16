@@ -112,3 +112,192 @@ def build_element_info_rows(element_info):
         ])
 
     return rows
+
+
+# ======================================================================
+# Relatórios de parâmetros
+# ======================================================================
+
+
+def _format_boolean(value):
+    """
+    Converte valores booleanos para uma representação amigável.
+
+    Args:
+        value:
+            Valor que será convertido.
+
+            Normalmente será True ou False.
+
+    Returns:
+        str:
+            "Sim" para True.
+            "Não" para False.
+            "N/D" caso o valor seja None.
+
+    Notes:
+        Esta função existe para manter a interface do plugin em português
+        e evitar que detalhes internos do Python, como True e False,
+        apareçam diretamente para o usuário.
+    """
+
+    if value is None:
+        return "N/D"
+
+    return "Sim" if bool(value) else "Não"
+
+
+def build_parameter_rows(parameter_infos):
+    """
+    Converte informações de parâmetros em linhas de tabela.
+
+    Args:
+        parameter_infos (list):
+            Lista de dicionários produzidos por
+            parameter_reader.read_element_parameters().
+
+            Cada item deve possuir, idealmente:
+
+                {
+                    "name": ...,
+                    "storage_type": ...,
+                    "raw_value": ...,
+                    "display_value": ...,
+                    "has_value": ...,
+                    "is_read_only": ...
+                }
+
+    Returns:
+        list:
+            Lista bidimensional pronta para ser utilizada pelo
+            output.print_table() do pyRevit.
+
+            Exemplo:
+
+                [
+                    [
+                        "Circuito",
+                        "C1",
+                        "C1",
+                        "String",
+                        "Sim",
+                        "Sim"
+                    ],
+                    ...
+                ]
+
+    Raises:
+        TypeError:
+            Caso parameter_infos não seja uma lista ou tupla.
+
+            Também é gerado caso algum item da coleção não seja
+            um dicionário.
+
+    Notes:
+        A função não ordena os parâmetros.
+
+        A ordenação é responsabilidade de parameter_reader.py,
+        pois é naquela camada que os dados são normalizados.
+
+        Dessa forma, reporting.py apenas apresenta os dados na
+        ordem em que foram recebidos.
+    """
+
+    # ------------------------------------------------------------------
+    # Validação da coleção recebida.
+    # ------------------------------------------------------------------
+
+    if not isinstance(parameter_infos, (list, tuple)):
+        raise TypeError(
+            "parameter_infos deve ser uma lista ou tupla."
+        )
+
+    rows = []
+
+    # ------------------------------------------------------------------
+    # Cada dicionário representa um Parameter já normalizado pelo
+    # parameter_reader.py.
+    # ------------------------------------------------------------------
+
+    for index, parameter_info in enumerate(parameter_infos):
+
+        if not isinstance(parameter_info, dict):
+            raise TypeError(
+                "O parâmetro na posição {0} deve ser um dicionário.".format(
+                    index
+                )
+            )
+
+        # --------------------------------------------------------------
+        # Nome
+        # --------------------------------------------------------------
+
+        name = _normalize_display_value(
+            parameter_info.get("name")
+        )
+
+        # --------------------------------------------------------------
+        # Valor apresentado no Revit.
+        #
+        # Exemplo:
+        #
+        #     raw_value     = 0.9842519685
+        #     display_value = "300 mm"
+        #
+        # Para o usuário, display_value normalmente será mais útil.
+        # --------------------------------------------------------------
+
+        display_value = _normalize_display_value(
+            parameter_info.get("display_value")
+        )
+
+        # --------------------------------------------------------------
+        # Valor bruto.
+        #
+        # Mantemos este valor visível porque estamos construindo
+        # inicialmente uma ferramenta de diagnóstico/desenvolvimento.
+        #
+        # Mais tarde, na interface destinada ao usuário final, talvez
+        # essa coluna não seja necessária.
+        # --------------------------------------------------------------
+
+        raw_value = _normalize_display_value(
+            parameter_info.get("raw_value")
+        )
+
+        # --------------------------------------------------------------
+        # StorageType.
+        #
+        # Exemplos:
+        #     String
+        #     Integer
+        #     Double
+        #     ElementId
+        # --------------------------------------------------------------
+
+        storage_type = _normalize_display_value(
+            parameter_info.get("storage_type")
+        )
+
+        # --------------------------------------------------------------
+        # Informações de estado.
+        # --------------------------------------------------------------
+
+        has_value = _format_boolean(
+            parameter_info.get("has_value")
+        )
+
+        is_read_only = _format_boolean(
+            parameter_info.get("is_read_only")
+        )
+
+        rows.append([
+            name,
+            display_value,
+            raw_value,
+            storage_type,
+            has_value,
+            is_read_only,
+        ])
+
+    return rows
