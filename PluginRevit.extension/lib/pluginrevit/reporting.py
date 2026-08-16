@@ -471,3 +471,111 @@ def build_parameter_identity_rows(parameter_infos):
         ])
 
     return rows
+
+# ======================================================================
+# Relatórios de infraestrutura MEP
+# ======================================================================
+
+
+def build_mep_summary_rows(mep_summary):
+    """
+    Converte o resumo da infraestrutura MEP em linhas de tabela.
+
+    Args:
+        mep_summary (dict):
+            Dicionário produzido por
+            connector_reader.read_mep_connection_summary().
+
+            Estrutura esperada:
+
+                {
+                    "has_mep_model": bool,
+                    "has_connector_manager": bool,
+                    "has_connector_collection": bool,
+                    "connector_count": int ou None
+                }
+
+    Returns:
+        list:
+            Lista bidimensional pronta para apresentação.
+
+            Exemplo:
+
+                [
+                    ["Possui MEPModel?", "Sim"],
+                    ["Possui ConnectorManager?", "Sim"],
+                    ["Possui coleção Connectors?", "Sim"],
+                    ["Quantidade de conectores", "2"],
+                ]
+
+    Raises:
+        TypeError:
+            Caso mep_summary não seja um dicionário.
+
+    Notes:
+        Esta função pertence apenas à camada de apresentação.
+
+        Nenhum objeto da Revit API é acessado aqui. Isso permite testar
+        toda a lógica de relatório fora do Revit.
+    """
+
+    # ------------------------------------------------------------------
+    # Validar estrutura recebida.
+    # ------------------------------------------------------------------
+
+    if not isinstance(mep_summary, dict):
+        raise TypeError(
+            "mep_summary deve ser um dicionário."
+        )
+
+    # ------------------------------------------------------------------
+    # Estados booleanos.
+    #
+    # Utilizamos o helper _format_boolean() já existente no reporting.py
+    # para manter a padronização:
+    #
+    #     True  -> Sim
+    #     False -> Não
+    #     None  -> N/D
+    # ------------------------------------------------------------------
+
+    has_mep_model = _format_boolean(
+        mep_summary.get("has_mep_model")
+    )
+
+    has_connector_manager = _format_boolean(
+        mep_summary.get("has_connector_manager")
+    )
+
+    has_connector_collection = _format_boolean(
+        mep_summary.get("has_connector_collection")
+    )
+
+    # ------------------------------------------------------------------
+    # Quantidade de conectores.
+    #
+    # Zero é um resultado válido e NÃO deve virar N/D.
+    # ------------------------------------------------------------------
+
+    connector_count = _normalize_display_value(
+        mep_summary.get("connector_count")
+    )
+
+    return [
+        [
+            "Possui MEPModel?",
+            has_mep_model,
+        ],
+        [
+            "Possui ConnectorManager?",
+            has_connector_manager,
+        ],
+        [
+            "Possui coleção Connectors?",
+            has_connector_collection,
+        ],
+        [
+            "Quantidade de conectores",
+            connector_count,
+        ],
+    ]

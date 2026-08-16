@@ -25,6 +25,7 @@ if str(LIB_PATH) not in sys.path:
 
 from pluginrevit.reporting import (
     build_element_info_rows,
+    build_mep_summary_rows,
     build_parameter_identity_rows,
     build_parameter_rows,
 )
@@ -407,6 +408,118 @@ class TestParameterIdentityReporting(unittest.TestCase):
         with self.assertRaises(TypeError):
             build_parameter_identity_rows(
                 parameter_infos
+            )
+
+class TestMEPSummaryReporting(unittest.TestCase):
+    """
+    Testes da preparação do resumo de infraestrutura MEP.
+    """
+
+    def test_complete_mep_summary(self):
+        """
+        Deve preparar corretamente um elemento com infraestrutura
+        MEP completa e dois conectores.
+        """
+
+        mep_summary = {
+            "has_mep_model": True,
+            "has_connector_manager": True,
+            "has_connector_collection": True,
+            "connector_count": 2,
+        }
+
+        rows = build_mep_summary_rows(
+            mep_summary
+        )
+
+        self.assertEqual(
+            rows,
+            [
+                [
+                    "Possui MEPModel?",
+                    "Sim",
+                ],
+                [
+                    "Possui ConnectorManager?",
+                    "Sim",
+                ],
+                [
+                    "Possui coleção Connectors?",
+                    "Sim",
+                ],
+                [
+                    "Quantidade de conectores",
+                    "2",
+                ],
+            ],
+        )
+
+    def test_element_without_mep_model(self):
+        """
+        Elemento sem MEPModel deve ser apresentado corretamente.
+        """
+
+        mep_summary = {
+            "has_mep_model": False,
+            "has_connector_manager": False,
+            "has_connector_collection": False,
+            "connector_count": 0,
+        }
+
+        rows = build_mep_summary_rows(
+            mep_summary
+        )
+
+        self.assertEqual(
+            rows[0],
+            [
+                "Possui MEPModel?",
+                "Não",
+            ],
+        )
+
+        self.assertEqual(
+            rows[3],
+            [
+                "Quantidade de conectores",
+                "0",
+            ],
+        )
+
+    def test_unknown_connector_count_becomes_nd(self):
+        """
+        Caso a quantidade de conectores não possa ser determinada,
+        deve ser exibido N/D.
+        """
+
+        mep_summary = {
+            "has_mep_model": True,
+            "has_connector_manager": True,
+            "has_connector_collection": True,
+            "connector_count": None,
+        }
+
+        rows = build_mep_summary_rows(
+            mep_summary
+        )
+
+        self.assertEqual(
+            rows[3],
+            [
+                "Quantidade de conectores",
+                "N/D",
+            ],
+        )
+
+    def test_invalid_mep_summary_raises_type_error(self):
+        """
+        Um valor que não seja dicionário deve gerar erro explícito.
+        """
+
+        with self.assertRaises(TypeError):
+
+            build_mep_summary_rows(
+                "isto não é um dicionário"
             )
 
 if __name__ == "__main__":
