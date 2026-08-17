@@ -35,6 +35,8 @@ if str(LIB_PATH) not in sys.path:
 
 
 from pluginrevit.connector_reader import (
+    read_connector_info,
+    read_element_connectors,
     read_mep_connection_summary,
 )
 
@@ -46,11 +48,42 @@ from pluginrevit.connector_reader import (
 
 class FakeConnectorCollection(object):
     """
-    Simula uma coleção Connectors com propriedade Size.
+    Simula uma coleção Connectors.
+
+    A coleção oferece:
+        - propriedade Size;
+        - suporte à iteração.
+
+    Isso permite testar tanto a Etapa 2A quanto a Etapa 2B.
     """
 
-    def __init__(self, size):
-        self.Size = size
+    def __init__(
+        self,
+        connectors=None,
+        size=None,
+    ):
+        self._connectors = (
+            connectors
+            if connectors is not None
+            else []
+        )
+
+        # ----------------------------------------------------------
+        # Permite manter compatibilidade com os testes antigos que
+        # instanciam explicitamente uma quantidade.
+        # ----------------------------------------------------------
+
+        if size is not None:
+            self.Size = size
+        else:
+            self.Size = len(
+                self._connectors
+            )
+
+    def __iter__(self):
+        return iter(
+            self._connectors
+        )
 
 
 class FakeConnectorManager(object):
@@ -78,6 +111,17 @@ class FakeElement(object):
 
     def __init__(self, mep_model=None):
         self.MEPModel = mep_model
+
+class FakeEnum(object):
+    """
+    Simula um enum .NET utilizado pela Revit API.
+    """
+
+    def __init__(self, name):
+        self.name = name
+
+    def ToString(self):
+        return self.name
 
 
 # ======================================================================
@@ -224,6 +268,193 @@ class TestConnectorReader(unittest.TestCase):
                 None
             )
 
+    def test_read_electrical_connector(self):
+        """
+        Deve identificar domínio e tipo de um Connector elétrico.
+        """
+
+        connector = FakeConnector(
+            domain="DomainElectrical",
+            connector_type="Logical",
+            is_connected=True,
+            mep_system=object(),
+        )
+
+        info = read_connector_info(
+            connector,
+            index=1,
+        )
+
+        self.assertEqual(
+            info["index"],
+            1,
+        )
+
+        self.assertEqual(
+            info["domain"],
+            "DomainElectrical",
+        )
+
+        self.assertEqual(
+            info["connector_type"],
+            "Logical",
+        )
+
+        self.assertTrue(
+            info["is_connected"]
+        )
+
+        self.assertTrue(
+            info["has_mep_system"]
+        )
+
+    def test_unconnected_connector(self):
+        """
+        Connector sem conexão deve ser identificado corretamente.
+        """
+
+        connector = FakeConnector(
+            domain="DomainElectrical",
+            connector_type="End",
+            is_connected=False,
+            mep_system=None,
+        )
+
+        info = read_connector_info(
+            connector
+        )
+
+        self.assertFalse(
+            info["is_connected"]
+        )
+
+        self.assertFalse(
+            info["has_mep_system"]
+        )
+
+    def test_non_electrical_connector_is_preserved(self):
+        """
+        Nesta etapa conectores de outros domínios não devem ser
+        removidos.
+
+        Primeiro queremos descobrir como as famílias estão estruturadas.
+        A filtragem elétrica será feita posteriormente.
+        """
+
+        connector = FakeConnector(
+            domain="DomainPiping",
+            connector_type="End",
+        )
+
+        info = read_connector_info(
+            connector
+        )
+
+        self.assertEqual(
+            info["domain"],
+            "DomainPiping",
+        )
+
+    def test_read_multiple_element_connectors(self):
+        """
+        Deve percorrer todos os conectores de um elemento.
+        """
+
+        connector_collection = FakeConnectorCollection(
+            connectors=[
+                FakeConnector(
+                    "DomainElectrical",
+                    "Logical",
+                ),
+                FakeConnector(
+                    "DomainElectrical",
+                    "End",
+                ),
+                FakeConnector(
+                    "DomainPiping",
+                    "End",
+                ),
+            ]
+        )
+
+        element = FakeElement(
+            FakeMEPModel(
+                FakeConnectorManager(
+                    connector_collection
+                )
+            )
+        )
+
+        connectors = read_element_connectors(
+            element
+        )
+
+        self.assertEqual(
+            len(connectors),
+            3,
+        )
+
+        self.assertEqual(
+            connectors[0]["index"],
+            1,
+        )
+
+        self.assertEqual(
+            connectors[2]["index"],
+            3,
+        )
+
+    def test_element_without_mep_returns_empty_connector_list(self):
+        """
+        Elemento sem infraestrutura MEP deve retornar lista vazia.
+        """
+
+        element = FakeElement(
+            mep_model=None
+        )
+
+        connectors = read_element_connectors(
+            element
+        )
+
+        self.assertEqual(
+            connectors,
+            [],
+        )
+
+    def test_none_connector_raises_value_error(self):
+        """
+        None não representa um Connector válido.
+        """
+
+        with self.assertRaises(ValueError):
+
+            read_connector_info(
+                None
+            )
+
+class FakeConnector(object):
+    """
+    Simula um Connector individual da Revit API.
+    """
+
+    def __init__(
+        self,
+        domain,
+        connector_type,
+        is_connected=False,
+        mep_system=None,
+    ):
+        self.Domain = FakeEnum(
+            domain
+        )
+
+        self.ConnectorType = FakeEnum(
+            connector_type
+        )
+
+        self.IsConnected = is_connected
+        self.MEPSystem = mep_system
 
 if __name__ == "__main__":
     unittest.main()

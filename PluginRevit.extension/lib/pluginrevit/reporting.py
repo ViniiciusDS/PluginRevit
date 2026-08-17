@@ -579,3 +579,165 @@ def build_mep_summary_rows(mep_summary):
             connector_count,
         ],
     ]
+
+# ======================================================================
+# Relatórios de conectores MEP
+# ======================================================================
+
+
+def build_connector_rows(connector_infos):
+    """
+    Converte informações normalizadas de conectores em linhas de tabela.
+
+    Args:
+        connector_infos (list ou tuple):
+            Coleção de dicionários produzidos por
+            connector_reader.read_element_connectors().
+
+            Cada item deve possuir, idealmente:
+
+                {
+                    "index": ...,
+                    "domain": ...,
+                    "connector_type": ...,
+                    "is_connected": ...,
+                    "has_mep_system": ...
+                }
+
+    Returns:
+        list:
+            Lista bidimensional pronta para apresentação.
+
+            Estrutura de cada linha:
+
+                [
+                    índice,
+                    domínio,
+                    tipo,
+                    conectado,
+                    possui_sistema_mep
+                ]
+
+            Exemplo:
+
+                [
+                    [
+                        "1",
+                        "DomainElectrical",
+                        "Logical",
+                        "Sim",
+                        "Sim"
+                    ],
+                    [
+                        "2",
+                        "DomainElectrical",
+                        "End",
+                        "Não",
+                        "Não"
+                    ]
+                ]
+
+    Raises:
+        TypeError:
+            Caso connector_infos não seja uma lista ou tupla.
+
+            Também gera erro caso algum item da coleção não seja
+            um dicionário.
+
+    Notes:
+        Esta função pertence somente à camada de apresentação.
+
+        Nenhum objeto Connector da Revit API é acessado diretamente aqui.
+
+        A ordem recebida é preservada. O índice atribuído durante a leitura
+        permite relacionar cada linha da tabela ao Connector correspondente.
+    """
+
+    # ------------------------------------------------------------------
+    # Validar coleção recebida.
+    # ------------------------------------------------------------------
+
+    if not isinstance(connector_infos, (list, tuple)):
+        raise TypeError(
+            "connector_infos deve ser uma lista ou tupla."
+        )
+
+    rows = []
+
+    # ------------------------------------------------------------------
+    # Cada item representa um Connector já normalizado pelo
+    # connector_reader.py.
+    # ------------------------------------------------------------------
+
+    for position, connector_info in enumerate(connector_infos):
+
+        if not isinstance(connector_info, dict):
+            raise TypeError(
+                "O conector na posição {0} deve ser um dicionário.".format(
+                    position
+                )
+            )
+
+        # --------------------------------------------------------------
+        # Índice.
+        #
+        # É apenas uma identificação de diagnóstico criada pelo nosso
+        # reader. Não representa necessariamente o ID interno do Connector.
+        # --------------------------------------------------------------
+
+        index = _normalize_display_value(
+            connector_info.get("index")
+        )
+
+        # --------------------------------------------------------------
+        # Domain.
+        #
+        # Exemplos que podemos encontrar:
+        #
+        #     DomainElectrical
+        #     DomainPiping
+        #     DomainHvac
+        #
+        # Ainda não filtramos nenhum domínio nesta etapa.
+        # --------------------------------------------------------------
+
+        domain = _normalize_display_value(
+            connector_info.get("domain")
+        )
+
+        # --------------------------------------------------------------
+        # ConnectorType.
+        #
+        # Nesta fase apenas apresentamos o valor informado pela API.
+        # A classificação e filtragem serão feitas posteriormente.
+        # --------------------------------------------------------------
+
+        connector_type = _normalize_display_value(
+            connector_info.get("connector_type")
+        )
+
+        # --------------------------------------------------------------
+        # Estado de conexão.
+        # --------------------------------------------------------------
+
+        is_connected = _format_boolean(
+            connector_info.get("is_connected")
+        )
+
+        # --------------------------------------------------------------
+        # Associação com MEPSystem.
+        # --------------------------------------------------------------
+
+        has_mep_system = _format_boolean(
+            connector_info.get("has_mep_system")
+        )
+
+        rows.append([
+            index,
+            domain,
+            connector_type,
+            is_connected,
+            has_mep_system,
+        ])
+
+    return rows

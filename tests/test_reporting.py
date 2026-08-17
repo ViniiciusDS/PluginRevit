@@ -24,6 +24,7 @@ if str(LIB_PATH) not in sys.path:
 
 
 from pluginrevit.reporting import (
+    build_connector_rows,
     build_element_info_rows,
     build_mep_summary_rows,
     build_parameter_identity_rows,
@@ -522,5 +523,185 @@ class TestMEPSummaryReporting(unittest.TestCase):
                 "isto não é um dicionário"
             )
 
+class TestConnectorReporting(unittest.TestCase):
+    """
+    Testes da preparação das informações individuais dos conectores.
+    """
+
+    def test_connected_electrical_connector_row(self):
+        """
+        Deve preparar corretamente um conector elétrico conectado
+        e associado a um MEPSystem.
+        """
+
+        connector_infos = [
+            {
+                "index": 1,
+                "domain": "DomainElectrical",
+                "connector_type": "Logical",
+                "is_connected": True,
+                "has_mep_system": True,
+            }
+        ]
+
+        rows = build_connector_rows(
+            connector_infos
+        )
+
+        self.assertEqual(
+            rows[0],
+            [
+                "1",
+                "DomainElectrical",
+                "Logical",
+                "Sim",
+                "Sim",
+            ],
+        )
+
+    def test_unconnected_connector_row(self):
+        """
+        Conector sem conexão e sem sistema deve ser apresentado
+        corretamente.
+        """
+
+        connector_infos = [
+            {
+                "index": 2,
+                "domain": "DomainElectrical",
+                "connector_type": "End",
+                "is_connected": False,
+                "has_mep_system": False,
+            }
+        ]
+
+        rows = build_connector_rows(
+            connector_infos
+        )
+
+        self.assertEqual(
+            rows[0],
+            [
+                "2",
+                "DomainElectrical",
+                "End",
+                "Não",
+                "Não",
+            ],
+        )
+
+    def test_unknown_connector_state_becomes_nd(self):
+        """
+        Informações que não puderam ser determinadas devem aparecer
+        como N/D em vez de causar erro.
+        """
+
+        connector_infos = [
+            {
+                "index": 3,
+                "domain": None,
+                "connector_type": None,
+                "is_connected": None,
+                "has_mep_system": None,
+            }
+        ]
+
+        rows = build_connector_rows(
+            connector_infos
+        )
+
+        self.assertEqual(
+            rows[0],
+            [
+                "3",
+                "N/D",
+                "N/D",
+                "N/D",
+                "N/D",
+            ],
+        )
+
+    def test_multiple_connectors_preserve_order(self):
+        """
+        A ordem produzida pelo connector_reader deve ser preservada
+        pelo reporting.
+
+        Isso facilita comparar a tabela com os dados obtidos durante
+        diagnóstico.
+        """
+
+        connector_infos = [
+            {
+                "index": 1,
+                "domain": "DomainElectrical",
+                "connector_type": "Logical",
+                "is_connected": True,
+                "has_mep_system": True,
+            },
+            {
+                "index": 2,
+                "domain": "DomainElectrical",
+                "connector_type": "End",
+                "is_connected": False,
+                "has_mep_system": False,
+            },
+            {
+                "index": 3,
+                "domain": "DomainPiping",
+                "connector_type": "End",
+                "is_connected": False,
+                "has_mep_system": False,
+            },
+        ]
+
+        rows = build_connector_rows(
+            connector_infos
+        )
+
+        self.assertEqual(
+            len(rows),
+            3,
+        )
+
+        self.assertEqual(
+            rows[0][0],
+            "1",
+        )
+
+        self.assertEqual(
+            rows[1][0],
+            "2",
+        )
+
+        self.assertEqual(
+            rows[2][0],
+            "3",
+        )
+
+        self.assertEqual(
+            rows[2][1],
+            "DomainPiping",
+        )
+
+    def test_invalid_connector_item_raises_type_error(self):
+        """
+        Item inválido deve gerar erro explícito em vez de produzir
+        uma tabela parcialmente incorreta.
+        """
+
+        connector_infos = [
+            {
+                "index": 1,
+                "domain": "DomainElectrical",
+            },
+            "isto não é um dicionário",
+        ]
+
+        with self.assertRaises(TypeError):
+
+            build_connector_rows(
+                connector_infos
+            )
+            
 if __name__ == "__main__":
     unittest.main()
